@@ -233,7 +233,17 @@ async def import_csv_data(
     current_user: User = Depends(require_role(["Brand Admin"])),
     db: Session = Depends(get_db)
 ):
+    import os
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in {'.csv', '.txt'}:
+        raise HTTPException(status_code=400, detail="Only CSV files (.csv, .txt) are supported for structured vault imports.")
+
     content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="CSV file exceeds maximum allowed size of 5 MB.")
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded CSV file is empty (0 bytes).")
+
     try:
         text = content.decode('utf-8')
     except Exception:

@@ -131,7 +131,7 @@ For convenience, judges can switch roles in **1 click** using the header role ba
 
 ## 🧪 Testing & Verification Report
 
-All 19 automated tests pass with 100% success:
+All 27 automated tests pass with 100% success:
 
 ```bash
 cd backend
@@ -144,9 +144,21 @@ cd backend
 - `tests/test_certificates.py` (2 tests): Digital signature verification, tamper detection, prevention of certificate generation on unapproved drafts.
 - `tests/test_delta_diff.py` (1 test): Paragraph SHA-256 hashing and delta comparison.
 - `tests/test_fact_checker.py` (3 tests): Price contradiction detection ($79 vs $99), expired fact handling, unsubstantiated claim detection.
+- `tests/test_file_uploads_and_security.py` (5 tests): Markdown parsing, HTML block normalization, TXT extraction, WCAG AA contrast standards, SVG attribute color parsing.
+- `tests/test_patch_recommender.py` (3 tests): >40% override rate threshold triggering, insufficient sample size rejection, low-rate non-triggering.
 - `tests/test_terminology.py` (3 tests): Whole-word boundary matching, substring protection, case-insensitive handling.
 - `tests/test_wcag_and_color.py` (4 tests): WCAG 2.2 relative luminance, contrast ratio thresholds, CIE76 Delta E color distance, alt-text validation.
 - `tests/test_workflow_audit.py` (2 tests): Mandatory override reasons, role-based authorization enforcement.
+
+---
+
+## 📑 Governance & Audit Deliverables
+- [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) — Comprehensive feature-by-feature PASS/FAIL matrix, evidence, and security evaluation.
+- [`TEST_REPORT.md`](./TEST_REPORT.md) — Automated test suite execution logs, benchmarks, and assertions.
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — Full technical design, sequence diagrams, and data models.
+- [`ROUND2_DEMO_SCRIPT.md`](./ROUND2_DEMO_SCRIPT.md) — Step-by-step 3–5 minute judge evaluation walkthrough.
+- [`DISCLOSURE.md`](./DISCLOSURE.md) — AI disclosures, deterministic boundaries, confidentiality protections, and benchmark disclosures.
+
 
 ---
 

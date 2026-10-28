@@ -95,11 +95,13 @@ class DocumentParser:
         elif lower_name.endswith(('.md', '.markdown')):
             return cls.parse_markdown(content_bytes.decode('utf-8', errors='ignore'))
         elif lower_name.endswith(('.html', '.htm')):
-            # Simple html strip & tag check
             text = content_bytes.decode('utf-8', errors='ignore')
             # Extract alt texts from <img> tags
             alts = re.findall(r'<img[^>]*alt=["\']([^"\']*)["\']', text, re.IGNORECASE)
-            clean_text = re.sub(r'<[^>]+>', ' ', text)
+            # Normalize block closing tags to paragraph breaks
+            normalized = re.sub(r'<\s*\/\s*(?:p|div|h[1-6]|li|tr)\s*>', '\n\n', text, flags=re.IGNORECASE)
+            normalized = re.sub(r'<\s*br\s*\/?\s*>', '\n\n', normalized, flags=re.IGNORECASE)
+            clean_text = re.sub(r'<[^>]+>', ' ', normalized)
             paras = cls.parse_text(clean_text)
             if alts and paras:
                 paras[0].metadata["img_alts"] = alts

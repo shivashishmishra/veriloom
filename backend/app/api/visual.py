@@ -11,6 +11,9 @@ from app.vision.wcag_contrast import WCAGChecker
 
 router = APIRouter(prefix="/visual", tags=["Visual Brand Auditor"])
 
+ALLOWED_VISUAL_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.svg', '.webp'}
+MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+
 @router.post("/audit")
 async def audit_visual_asset(
     file: Optional[UploadFile] = File(None),
@@ -28,7 +31,26 @@ async def audit_visual_asset(
 
     # 1. Image / SVG Color Extraction & CIE76 Delta E Comparison
     if file:
+        import os
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext not in ALLOWED_VISUAL_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported visual asset extension '{ext}'. Allowed: {', '.join(sorted(ALLOWED_VISUAL_EXTENSIONS))}"
+            )
+
         file_bytes = await file.read()
+        if len(file_bytes) > MAX_IMAGE_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Image exceeds maximum allowed size of 10 MB."
+            )
+        if len(file_bytes) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded image file is empty (0 bytes)."
+            )
+
         try:
             audit_data = ColorExtractor.audit_visual_colors(
                 file_bytes=file_bytes,

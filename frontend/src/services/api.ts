@@ -4,7 +4,7 @@ import {
 } from '../types';
 import { mockFallback } from './mockFallback';
 
-const BASE_URL = '/api';
+const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
 
 function getHeaders(isFormData = false): HeadersInit {
   const token = localStorage.getItem('veriloom_token');
@@ -472,5 +472,16 @@ export const api = {
     } catch {
       return { message: 'Demo workspace reset to official baseline.' };
     }
+  },
+
+  checkBackendHealth: async (): Promise<{ isLive: boolean; database?: string; engine?: string }> => {
+    try {
+      const res = await fetch(`${BASE_URL}/health`);
+      if (res.ok) {
+        const data = await res.json();
+        return { isLive: true, database: data.database, engine: data.engine };
+      }
+    } catch (_) {}
+    return { isLive: false };
   },
 };

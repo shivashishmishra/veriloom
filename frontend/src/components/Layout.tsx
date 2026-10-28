@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -17,6 +17,7 @@ import {
   Building2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../services/api';
 
 interface LayoutProps {
   onStartTour?: () => void;
@@ -25,6 +26,13 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ onStartTour }) => {
   const { user, switchRole, logout } = useAuth();
   const navigate = useNavigate();
+  const [backendLive, setBackendLive] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    api.checkBackendHealth().then((res) => {
+      setBackendLive(res.isLive);
+    });
+  }, []);
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -106,12 +114,26 @@ export const Layout: React.FC<LayoutProps> = ({ onStartTour }) => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header Bar */}
         <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shadow-xs z-10 flex-shrink-0">
-          {/* Left: Synthetic Demo Badge */}
-          <div className="flex items-center gap-3">
+          {/* Left: Synthetic Demo Badge & Backend Live Indicator */}
+          <div className="flex items-center gap-2.5 flex-wrap">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200">
               <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
               DEMO WORKSPACE — SYNTHETIC SAMPLE DATA
             </div>
+            {backendLive === true ? (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                API: Connected (FastAPI)
+              </div>
+            ) : backendLive === false ? (
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-300"
+                title="Running in client demo engine. Connect to local or cloud FastAPI backend for live database persistence."
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                Static Client Engine
+              </div>
+            ) : null}
           </div>
 
           {/* Right: Guided Tour & Role Switcher */}

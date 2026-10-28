@@ -111,6 +111,9 @@ def get_submission_by_id(
     resp.assigned_reviewer_name = sub.assigned_reviewer.full_name if sub.assigned_reviewer else None
     return resp
 
+ALLOWED_DOC_EXTENSIONS = {'.pdf', '.docx', '.md', '.markdown', '.txt', '.html', '.htm'}
+MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+
 @router.post("/{submission_id}/upload-document", response_model=ContentSubmissionResponse)
 async def upload_document(
     submission_id: int,
@@ -125,7 +128,27 @@ async def upload_document(
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found.")
 
+    # Extension validation
+    import os
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_DOC_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported document format '{ext}'. Supported formats: {', '.join(sorted(ALLOWED_DOC_EXTENSIONS))}"
+        )
+
     content_bytes = await file.read()
+    if len(content_bytes) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds maximum allowed size of 10 MB (received {len(content_bytes)/(1024*1024):.1f} MB)."
+        )
+    if len(content_bytes) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty (0 bytes). Please upload a valid document."
+        )
+
     try:
         parsed_paras = DocumentParser.parse_document(file.filename, content_bytes)
     except Exception as e:

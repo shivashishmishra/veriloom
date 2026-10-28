@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: veriloom-db
+    environment:
+      POSTGRES_USER: veriloom
+      POSTGRES_PASSWORD: veriloom_secure_password_2026
+      POSTGRES_DB: veriloom_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veriloom -d veriloom_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: veriloom-backend
+    environment:
+      DATABASE_URL: postgresql://veriloom:veriloom_secure_password_2026@postgres:5432/veriloom_db
+      USE_PGVECTOR: "true"
+      SECRET_KEY: veriloom-production-super-secret-key-2026-inkloom
+      AI_PROVIDER: none
+      MASK_CONFIDENTIAL_DATA: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: veriloom-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

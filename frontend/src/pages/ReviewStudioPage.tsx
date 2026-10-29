@@ -17,7 +17,8 @@ import {
   Sparkles,
   Upload,
   Download,
-  Award
+  Award,
+  Plus
 } from 'lucide-react';
 import { api } from '../services/api';
 import { ContentSubmission, ContentRevision, Finding, DeltaScanStats, ComplianceCertificate } from '../types';
@@ -50,6 +51,15 @@ export const ReviewStudioPage: React.FC = () => {
 
   // Certificate Modal
   const [activeCertificate, setActiveCertificate] = useState<ComplianceCertificate | null>(null);
+
+  // New Draft & Upload Modal State
+  const [showNewDraftModal, setShowNewDraftModal] = useState(false);
+  const [newDraftTitle, setNewDraftTitle] = useState('');
+  const [newDraftType, setNewDraftType] = useState('Launch Copy');
+  const [newDraftTab, setNewDraftTab] = useState<'text' | 'file'>('text');
+  const [newDraftText, setNewDraftText] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadSubmitting, setUploadSubmitting] = useState(false);
 
   // Load submissions
   const loadSubmissions = async (preferredId?: number) => {
@@ -90,6 +100,68 @@ export const ReviewStudioPage: React.FC = () => {
       setEditedText(latestRev?.raw_content || '');
       setSelectedFinding(latestRev?.findings[0] || null);
       setDeltaStats(null);
+    }
+  };
+
+  // Create or Upload New Draft
+  const handleCreateNewDraft = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDraftTitle.trim()) {
+      alert('Please provide a document title.');
+      return;
+    }
+
+    setUploadSubmitting(true);
+    try {
+      let contentToUse = newDraftText.trim();
+      let createdSub: ContentSubmission | null = null;
+
+      if (newDraftTab === 'file' && selectedFile) {
+        const lowerName = selectedFile.name.toLowerCase();
+        if (
+          lowerName.endsWith('.txt') ||
+          lowerName.endsWith('.md') ||
+          lowerName.endsWith('.markdown') ||
+          lowerName.endsWith('.html') ||
+          lowerName.endsWith('.htm')
+        ) {
+          contentToUse = await selectedFile.text();
+          createdSub = await api.createSubmission(newDraftTitle.trim(), newDraftType, contentToUse);
+        } else {
+          createdSub = await api.createSubmission(
+            newDraftTitle.trim(),
+            newDraftType,
+            `Uploaded file: ${selectedFile.name}`
+          );
+          try {
+            await api.uploadDocument(createdSub.id, selectedFile);
+          } catch (uploadErr) {
+            console.warn('Backend document extraction failed or running in static mode:', uploadErr);
+          }
+        }
+      } else {
+        if (!contentToUse) {
+          alert('Please enter or paste the draft content.');
+          setUploadSubmitting(false);
+          return;
+        }
+        createdSub = await api.createSubmission(newDraftTitle.trim(), newDraftType, contentToUse);
+      }
+
+      if (createdSub) {
+        setShowNewDraftModal(false);
+        setNewDraftTitle('');
+        setNewDraftText('');
+        setSelectedFile(null);
+        await loadSubmissions(createdSub.id);
+        // Automatically run verification scan on the new draft!
+        await api.runScan(createdSub.id);
+        await loadSubmissions(createdSub.id);
+      }
+    } catch (err: any) {
+      alert(`Failed to create draft: ${err.message}`);
+    } finally {
+      setUploadSubmitting(false);
     }
   };
 
@@ -205,6 +277,15 @@ export const ReviewStudioPage: React.FC = () => {
               ))}
             </select>
           </div>
+
+          <button
+            onClick={() => setShowNewDraftModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 mt-3.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold text-xs border border-brand-200 transition shadow-2xs"
+            title="Create new draft or upload document (.pdf, .docx, .md, .txt, .html)"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>+ New Draft / Upload</span>
+          </button>
 
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
@@ -682,6 +763,160 @@ export const ReviewStudioPage: React.FC = () => {
                 Confirm Override
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: New Content Draft & Multi-Format Upload */}
+      {showNewDraftModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">New Content Draft &amp; Document Upload</h3>
+                  <p className="text-[11px] text-slate-500">Supports PDF, DOCX, Markdown, HTML, and TXT drafts</p>
+                </div>
+              </div>
+              <button onClick={() => setShowNewDraftModal(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewDraft} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Document Title <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newDraftTitle}
+                  onChange={(e) => setNewDraftTitle(e.target.value)}
+                  placeholder="e.g. Q4 Global Product Launch Announcement"
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Content Type</label>
+                <select
+                  value={newDraftType}
+                  onChange={(e) => setNewDraftType(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="Launch Copy">Launch Copy</option>
+                  <option value="Whitepaper">Whitepaper</option>
+                  <option value="Press Release">Press Release</option>
+                  <option value="Email">Customer Email</option>
+                  <option value="Blog Post">Blog Post</option>
+                  <option value="Product Documentation">Product Documentation</option>
+                </select>
+              </div>
+
+              {/* Input Mode Tabs */}
+              <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setNewDraftTab('text')}
+                  className={`px-3 py-1 text-xs rounded-md font-semibold transition ${
+                    newDraftTab === 'text' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  📝 Paste / Write Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewDraftTab('file')}
+                  className={`px-3 py-1 text-xs rounded-md font-semibold transition ${
+                    newDraftTab === 'file' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  📁 Upload Document (.pdf, .docx, .md, .txt, .html)
+                </button>
+              </div>
+
+              {newDraftTab === 'text' ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">Draft Body</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewDraftTitle('NovaTech Q4 Cloud Launch Announcement');
+                        setNewDraftText(
+                          'We are thrilled to announce NovaCloud Enterprise! For only $79 per user/month, companies can leverage unprecedented synergy across distributed teams. Our game-changer platform provides a cheap way to ensure 100% cloud reliability.'
+                        );
+                      }}
+                      className="text-[11px] font-semibold text-brand-600 hover:underline"
+                    >
+                      Load Sample Faulty Draft
+                    </button>
+                  </div>
+                  <textarea
+                    rows={5}
+                    value={newDraftText}
+                    onChange={(e) => setNewDraftText(e.target.value)}
+                    placeholder="Enter or paste your text draft..."
+                    className="w-full p-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 font-mono"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 block">Select Document File</label>
+                  <div className="border-2 border-dashed border-slate-300 hover:border-brand-400 rounded-xl p-4 text-center cursor-pointer relative bg-slate-50 hover:bg-slate-100/50 transition">
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.md,.markdown,.txt,.html,.htm"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 10 * 1024 * 1024) {
+                            alert('File exceeds 10 MB limit.');
+                            return;
+                          }
+                          setSelectedFile(file);
+                          if (!newDraftTitle) {
+                            setNewDraftTitle(file.name.replace(/\.[^/.]+$/, ''));
+                          }
+                        }
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                    <Upload className="h-6 w-6 text-slate-400 mx-auto mb-1.5" />
+                    <p className="text-xs font-semibold text-slate-700">
+                      {selectedFile ? selectedFile.name : 'Click or drag document to upload'}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {selectedFile
+                        ? `${(selectedFile.size / 1024).toFixed(1)} KB`
+                        : 'PDF, DOCX, Markdown, HTML, TXT (up to 10 MB)'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowNewDraftModal(false)}
+                  className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadSubmitting}
+                  className="px-4 py-1.5 text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white rounded-lg shadow-xs transition disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {uploadSubmitting && <RotateCw className="h-3.5 w-3.5 animate-spin" />}
+                  <span>{uploadSubmitting ? 'Processing...' : 'Create & Scan Draft'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
